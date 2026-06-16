@@ -1,0 +1,5 @@
+node_modules/
+_check.jsx
+server.log
+package*.json
+.claude/

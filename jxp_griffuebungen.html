@@ -6,7 +6,7 @@
   <title>JXP – Griffübungen</title>
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
   <style>
     @font-face {
       font-family: 'Bravura';
@@ -61,6 +61,37 @@ const BARITON = [
   { id:"A3",  label:"A3",  sp:8,  acc:null,     v:[2] },
   { id:"Bb3", label:"Bb3", sp:9,  acc:"♭", v:[] },
   { id:"B3",  label:"H3",  sp:9,  acc:null,     v:[1,2,3] },
+];
+
+const POSAUNE = [
+  { id:"Bb2", label:"Bb2", sp:2,  acc:"♭", z:1 },
+  { id:"C3",  label:"C3",  sp:3,  acc:null, z:6 },
+  { id:"Db3", label:"Db3", sp:3,  acc:"♭",  z:5 },
+  { id:"D3",  label:"D3",  sp:4,  acc:null, z:4 },
+  { id:"Eb3", label:"Eb3", sp:4,  acc:"♭",  z:3 },
+  { id:"E3",  label:"E3",  sp:5,  acc:null, z:2 },
+  { id:"F3",  label:"F3",  sp:6,  acc:null, z:1 },
+  { id:"Fs3", label:"F#3", sp:6,  acc:"♯",  z:5 },
+  { id:"G3",  label:"G3",  sp:7,  acc:null, z:4 },
+  { id:"Ab3", label:"Ab3", sp:8,  acc:"♭",  z:3 },
+  { id:"A3",  label:"A3",  sp:8,  acc:null, z:2 },
+  { id:"Bb3", label:"Bb3", sp:9,  acc:"♭",  z:1 },
+  { id:"B3",  label:"H3",  sp:9,  acc:null, z:4 },
+  { id:"C4",  label:"C4",  sp:10, acc:null, z:3 },
+  { id:"Db4", label:"Db4", sp:10, acc:"♭",  z:2 },
+  { id:"D4",  label:"D4",  sp:11, acc:null, z:1 },
+  { id:"Eb4", label:"Eb4", sp:11, acc:"♭",  z:3 },
+  { id:"E4",  label:"E4",  sp:12, acc:null, z:2 },
+  { id:"F4",  label:"F4",  sp:13, acc:null, z:1 },
+];
+
+const GRIFF_POSAUNE = [
+  { note:"Bb2 / F3 / Bb3 / D4 / F4", zug:"1" },
+  { note:"E3 / A3 / Db4 / E4",        zug:"2" },
+  { note:"Eb3 / Ab3 / C4 / Eb4",      zug:"3" },
+  { note:"D3 / G3 / H3",              zug:"4" },
+  { note:"Db3 / F#3",                 zug:"5" },
+  { note:"C3",                         zug:"6" },
 ];
 
 const GRIFF_INFO = [
@@ -276,6 +307,29 @@ function Ventil({ num, pressed, onToggle }) {
   );
 }
 
+function ZugButton({ num, pressed, onToggle }) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:4}}>
+      <span style={{fontSize:10,color:"#5c6bc0",fontWeight:"bold"}}>{num}. Zug</span>
+      <button onClick={onToggle} style={{
+        width:38,height:52,borderRadius:6,
+        background:pressed
+          ?"linear-gradient(180deg,#1a237e,#283593)"
+          :"linear-gradient(180deg,#e8eaf6,#c5cae9)",
+        border:`2px solid ${pressed?"#0d1b6e":"#9fa8da"}`,
+        color:pressed?"white":"#3949ab",
+        fontSize:17,fontWeight:"bold",cursor:"pointer",
+        boxShadow:pressed
+          ?"inset 0 3px 8px rgba(0,0,0,0.4)"
+          :"0 3px 6px rgba(0,0,0,0.1)",
+        transform:pressed?"translateY(3px)":"none",
+        transition:"all 0.1s",
+        display:"flex",alignItems:"center",justifyContent:"center",
+      }}>{num}</button>
+    </div>
+  );
+}
+
 function App() {
   const [inst,setInst]       = useState("trumpet");
   const [diff,setDiff]       = useState("natural");
@@ -285,8 +339,9 @@ function App() {
   const [score,setScore]     = useState({c:0,t:0});
   const [showTable,setTable] = useState(false);
 
-  const allNotes = inst==="trumpet" ? TRUMPET : BARITON;
+  const allNotes = inst==="trumpet" ? TRUMPET : inst==="bariton" ? BARITON : POSAUNE;
   const clef     = inst==="trumpet" ? "treble" : "bass";
+  const isTrombone = inst==="posaune";
 
   const filterPool = (notes, d, s) => {
     const sc = SCALES[s];
@@ -301,7 +356,9 @@ function App() {
 
   const pruefen = () => {
     if (feedback!==null) return;
-    const ok = setsEqual(selected, note.v);
+    const ok = isTrombone
+      ? selected.length===1 && selected[0]===note.z
+      : setsEqual(selected, note.v);
     setFb(ok);
     setScore(s=>({c:s.c+(ok?1:0),t:s.t+1}));
     if (ok) playTusch();
@@ -311,7 +368,7 @@ function App() {
 
   const wechselInst = i => {
     setInst(i);
-    const notes = i==="trumpet" ? TRUMPET : BARITON;
+    const notes = i==="trumpet" ? TRUMPET : i==="bariton" ? BARITON : POSAUNE;
     const p = filterPool(notes, diff, scale);
     setNote(rand(p.length ? p : notes)); setSel([]); setFb(null); setScore({c:0,t:0});
   };
@@ -330,7 +387,11 @@ function App() {
 
   const toggleV = v => {
     if (feedback!==null) return;
-    setSel(prev=>prev.includes(v)?prev.filter(x=>x!==v):[...prev,v]);
+    if (isTrombone) {
+      setSel(prev => prev.includes(v) ? [] : [v]);
+    } else {
+      setSel(prev=>prev.includes(v)?prev.filter(x=>x!==v):[...prev,v]);
+    }
   };
 
   const pct = score.t>0 ? Math.round(score.c/score.t*100) : null;
@@ -353,14 +414,14 @@ function App() {
         Posaunenchor · klingend C (alle Stimmen)
       </p>
 
-      <div style={{display:"flex",gap:10,marginBottom:12}}>
-        {[["trumpet","Trompete – Violinschlüssel"],["bariton","Bariton – Bassschlüssel"]].map(([k,l])=>(
+      <div style={{display:"flex",flexWrap:"wrap",gap:8,marginBottom:12,justifyContent:"center"}}>
+        {[["trumpet","Trompete – Violinschlüssel"],["bariton","Bariton – Bassschlüssel"],["posaune","Zugposaune – Bassschlüssel"]].map(([k,l])=>(
           <button key={k} onClick={()=>wechselInst(k)} style={{
-            padding:"8px 18px",borderRadius:20,cursor:"pointer",
+            padding:"8px 16px",borderRadius:20,cursor:"pointer",
             border:`2px solid ${inst===k?"#283593":"#9fa8da"}`,
             background:inst===k?"#283593":"white",
             color:inst===k?"white":"#283593",
-            fontWeight:"bold",fontSize:14,transition:"all 0.2s",
+            fontWeight:"bold",fontSize:13,transition:"all 0.2s",
           }}>{l}</button>
         ))}
       </div>
@@ -399,17 +460,27 @@ function App() {
       <Staff clef={clef} note={note} feedback={feedback} scale={scale}/>
 
       <p style={{margin:"6px 0 14px",fontSize:11,color:"#9fa8da"}}>
-        {clef==="treble"?"Trompete · Violinschlüssel":"Bariton · Bassschlüssel"}
+        {inst==="trumpet"?"Trompete · Violinschlüssel":inst==="bariton"?"Bariton · Bassschlüssel":"Zugposaune · Bassschlüssel"}
       </p>
 
-      <div style={{display:"flex",gap:22,marginBottom:12}}>
-        {[1,2,3].map(v=>(
-          <Ventil key={v} num={v} pressed={selected.includes(v)} onToggle={()=>toggleV(v)}/>
-        ))}
-      </div>
+      {isTrombone ? (
+        <div style={{display:"flex",gap:8,marginBottom:12}}>
+          {[1,2,3,4,5,6,7].map(z=>(
+            <ZugButton key={z} num={z} pressed={selected.includes(z)} onToggle={()=>toggleV(z)}/>
+          ))}
+        </div>
+      ) : (
+        <div style={{display:"flex",gap:22,marginBottom:12}}>
+          {[1,2,3].map(v=>(
+            <Ventil key={v} num={v} pressed={selected.includes(v)} onToggle={()=>toggleV(v)}/>
+          ))}
+        </div>
+      )}
 
       <p style={{margin:"0 0 16px",fontSize:14,color:"#5c6bc0"}}>
-        Gewählt: <strong style={{color:"#283593"}}>{vLabel(selected)}</strong>
+        Gewählt: <strong style={{color:"#283593"}}>
+          {isTrombone ? (selected[0] ? `Zug ${selected[0]}` : "—") : vLabel(selected)}
+        </strong>
       </p>
 
       {feedback===null ? (
@@ -423,7 +494,7 @@ function App() {
         <div style={{textAlign:"center"}}>
           <p style={{fontSize:20,fontWeight:"bold",margin:"0 0 12px",
             color:feedback?"#2e7d32":"#c62828"}}>
-            {feedback?"🎉 Richtig!":"❌ Richtig: "+vLabel(note.v)}
+            {feedback?"🎉 Richtig!":"❌ Richtig: "+(isTrombone ? `Zug ${note.z}` : vLabel(note.v))}
           </p>
           <button onClick={weiter} style={{
             background:feedback?"#388e3c":"#5c6bc0",
@@ -449,27 +520,47 @@ function App() {
           borderRadius:12,padding:"12px 20px",maxWidth:290,
           fontSize:12,color:"#333",
         }}>
-          <strong style={{color:"#283593"}}>Klingend C · B♭-Instrument</strong>
-          <table style={{width:"100%",borderCollapse:"collapse",marginTop:8}}>
-            <thead>
-              <tr>
-                <th style={{textAlign:"left",paddingBottom:4,color:"#5c6bc0"}}>Note (klingend)</th>
-                <th style={{textAlign:"center",paddingBottom:4,color:"#5c6bc0"}}>Ventile</th>
-              </tr>
-            </thead>
-            <tbody>
-              {GRIFF_INFO.map(({note,ventil})=>(
-                <tr key={note} style={{borderTop:"1px solid #e8eaf6"}}>
-                  <td style={{padding:"3px 0"}}>{note}</td>
-                  <td style={{textAlign:"center",fontWeight:"bold",
-                    color:ventil==="offen"?"#388e3c":"#283593"}}>{ventil}</td>
+          {isTrombone ? (<>
+            <strong style={{color:"#283593"}}>Zugposaune · klingend C</strong>
+            <table style={{width:"100%",borderCollapse:"collapse",marginTop:8}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign:"left",paddingBottom:4,color:"#5c6bc0"}}>Noten (klingend)</th>
+                  <th style={{textAlign:"center",paddingBottom:4,color:"#5c6bc0"}}>Zug</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          <p style={{margin:"8px 0 0",fontSize:11,color:"#9fa8da"}}>
-            Formel: klingend + große Sekunde = Greifton
-          </p>
+              </thead>
+              <tbody>
+                {GRIFF_POSAUNE.map(({note,zug})=>(
+                  <tr key={zug} style={{borderTop:"1px solid #e8eaf6"}}>
+                    <td style={{padding:"3px 0"}}>{note}</td>
+                    <td style={{textAlign:"center",fontWeight:"bold",color:"#283593"}}>{zug}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </>) : (<>
+            <strong style={{color:"#283593"}}>Klingend C · B♭-Instrument</strong>
+            <table style={{width:"100%",borderCollapse:"collapse",marginTop:8}}>
+              <thead>
+                <tr>
+                  <th style={{textAlign:"left",paddingBottom:4,color:"#5c6bc0"}}>Note (klingend)</th>
+                  <th style={{textAlign:"center",paddingBottom:4,color:"#5c6bc0"}}>Ventile</th>
+                </tr>
+              </thead>
+              <tbody>
+                {GRIFF_INFO.map(({note,ventil})=>(
+                  <tr key={note} style={{borderTop:"1px solid #e8eaf6"}}>
+                    <td style={{padding:"3px 0"}}>{note}</td>
+                    <td style={{textAlign:"center",fontWeight:"bold",
+                      color:ventil==="offen"?"#388e3c":"#283593"}}>{ventil}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <p style={{margin:"8px 0 0",fontSize:11,color:"#9fa8da"}}>
+              Formel: klingend + große Sekunde = Greifton
+            </p>
+          </>)}
         </div>
       )}
     </div>
