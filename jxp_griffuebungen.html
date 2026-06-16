@@ -1,0 +1,482 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JXP – Griffübungen</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <style>
+    @font-face {
+      font-family: 'Bravura';
+      src: url('https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@master/redist/woff2/Bravura.woff2') format('woff2'),
+           url('https://cdn.jsdelivr.net/gh/steinbergmedia/bravura@master/redist/woff/Bravura.woff') format('woff');
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;">
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState } = React;
+
+const TRUMPET = [
+  { id:"Bb3", label:"Bb3", sp:-3, acc:"♭", v:[] },
+  { id:"B3",  label:"H3",  sp:-3, acc:null,     v:[1,2,3] },
+  { id:"C4",  label:"C4",  sp:-2, acc:null,     v:[1,3] },
+  { id:"Db4", label:"Db4", sp:-1, acc:"♭", v:[2,3] },
+  { id:"D4",  label:"D4",  sp:-1, acc:null,     v:[1,2] },
+  { id:"Eb4", label:"Eb4", sp:0,  acc:"♭", v:[1] },
+  { id:"E4",  label:"E4",  sp:0,  acc:null,     v:[2] },
+  { id:"F4",  label:"F4",  sp:1,  acc:null,     v:[] },
+  { id:"Fs4", label:"F#4", sp:1,  acc:"♯", v:[2,3] },
+  { id:"G4",  label:"G4",  sp:2,  acc:null,     v:[1,2] },
+  { id:"Ab4", label:"Ab4", sp:3,  acc:"♭", v:[1] },
+  { id:"A4",  label:"A4",  sp:3,  acc:null,     v:[2] },
+  { id:"Bb4", label:"Bb4", sp:4,  acc:"♭", v:[] },
+  { id:"B4",  label:"H4",  sp:4,  acc:null,     v:[1,2] },
+  { id:"C5",  label:"C5",  sp:5,  acc:null,     v:[1] },
+  { id:"Cs5", label:"C#5", sp:5,  acc:"♯", v:[2,3] },
+  { id:"D5",  label:"D5",  sp:6,  acc:null,     v:[] },
+  { id:"Eb5", label:"Eb5", sp:6,  acc:"♭", v:[1] },
+  { id:"E5",  label:"E5",  sp:7,  acc:null,     v:[2] },
+  { id:"F5",  label:"F5",  sp:8,  acc:null,     v:[] },
+  { id:"Fs5", label:"F#5", sp:8,  acc:"♯", v:[2,3] },
+  { id:"G5",  label:"G5",  sp:9,  acc:null,     v:[1,2] },
+];
+
+const BARITON = [
+  { id:"Bb2", label:"Bb2", sp:2,  acc:"♭", v:[] },
+  { id:"B2",  label:"H2",  sp:2,  acc:null,     v:[1,2,3] },
+  { id:"C3",  label:"C3",  sp:3,  acc:null,     v:[1,3] },
+  { id:"Cs3", label:"C#3", sp:3,  acc:"♯", v:[2,3] },
+  { id:"D3",  label:"D3",  sp:4,  acc:null,     v:[1,2] },
+  { id:"Eb3", label:"Eb3", sp:4,  acc:"♭", v:[1] },
+  { id:"E3",  label:"E3",  sp:5,  acc:null,     v:[2] },
+  { id:"F3",  label:"F3",  sp:6,  acc:null,     v:[] },
+  { id:"Fs3", label:"F#3", sp:6,  acc:"♯", v:[2,3] },
+  { id:"G3",  label:"G3",  sp:7,  acc:null,     v:[1,2] },
+  { id:"Ab3", label:"Ab3", sp:8,  acc:"♭", v:[1] },
+  { id:"A3",  label:"A3",  sp:8,  acc:null,     v:[2] },
+  { id:"Bb3", label:"Bb3", sp:9,  acc:"♭", v:[] },
+  { id:"B3",  label:"H3",  sp:9,  acc:null,     v:[1,2,3] },
+];
+
+const GRIFF_INFO = [
+  { note:"B♭", ventil:"offen" },
+  { note:"H",        ventil:"1+2+3" },
+  { note:"C",       ventil:"1+3" },
+  { note:"D♭", ventil:"2+3" },
+  { note:"D",       ventil:"1+2" },
+  { note:"E♭", ventil:"1" },
+  { note:"E",       ventil:"2" },
+  { note:"F",       ventil:"offen" },
+  { note:"F#",      ventil:"2+3" },
+  { note:"G",       ventil:"1+2" },
+  { note:"A♭", ventil:"1" },
+  { note:"A",       ventil:"2" },
+];
+
+function playTusch() {
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const seq = [
+      { freq:392.0, t:0.00, dur:0.15 },
+      { freq:523.3, t:0.12, dur:0.15 },
+      { freq:659.3, t:0.24, dur:0.15 },
+      { freq:784.0, t:0.36, dur:0.55 },
+    ];
+    seq.forEach(({ freq, t, dur }) => {
+      const osc  = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filt = ctx.createBiquadFilter();
+      filt.type = "lowpass";
+      filt.frequency.value = 2200;
+      osc.type = "sawtooth";
+      osc.frequency.value = freq;
+      osc.connect(filt); filt.connect(gain); gain.connect(ctx.destination);
+      const now = ctx.currentTime;
+      gain.gain.setValueAtTime(0, now+t);
+      gain.gain.linearRampToValueAtTime(0.28, now+t+0.02);
+      gain.gain.setValueAtTime(0.28, now+t+dur-0.06);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now+t+dur);
+      osc.start(now+t); osc.stop(now+t+dur+0.05);
+    });
+  } catch(e) {}
+}
+
+const rand = arr => arr[Math.floor(Math.random()*arr.length)];
+
+function setsEqual(a, b) {
+  if (a.length !== b.length) return false;
+  const sa = [...a].sort((x,y)=>x-y);
+  const sb = [...b].sort((x,y)=>x-y);
+  return sa.every((x,i) => x===sb[i]);
+}
+
+const STEP=10, SBOTTOM=168, NX=182, SX1=64, SX2=252;
+const sY = sp => SBOTTOM - sp*STEP;
+const ledgersFor = sp => {
+  const L=[];
+  for(let p=-2; p>=sp; p-=2) L.push(p);
+  for(let p=10; p<=sp; p+=2) L.push(p);
+  return L;
+};
+const vLabel = arr => arr.length===0
+  ? "0 (offen)"
+  : "Ventil "+[...arr].sort((a,b)=>a-b).join(" + ");
+
+const getPitchClass = id => id.replace(/\d+$/, '');
+
+const SCALES = {
+  "Alle":   null,
+  "C-Dur":  new Set(["C","D","E","F","G","A","B"]),
+  "F-Dur":  new Set(["F","G","A","Bb","C","D","E"]),
+  "B-Dur":  new Set(["Bb","C","D","Eb","F","G","A"]),
+  "Es-Dur": new Set(["Eb","F","G","Ab","Bb","C","D"]),
+  "As-Dur": new Set(["Ab","Bb","C","Db","Eb","F","G"]),
+  "G-Dur":  new Set(["G","A","B","C","D","E","Fs"]),
+  "D-Dur":  new Set(["D","E","Fs","G","A","B","Cs"]),
+  "A-Dur":  new Set(["A","B","Cs","D","E","Fs","Ab"]),
+  "E-Dur":  new Set(["E","Fs","Ab","A","B","Cs","Eb"]),
+};
+
+// Bravura (SMuFL): 1 em = 4 Notenabstände, 1 Notenabstand = 20px → fontSize = 80
+// Baseline liegt auf der untersten Notenlinie (sp=0, y=168)
+// Vorzeichen pro Tonart
+const SCALE_KEYSIG = {
+  "Alle":   { type: null,    count: 0 },
+  "C-Dur":  { type: null,    count: 0 },
+  "G-Dur":  { type: 'sharp', count: 1 },
+  "D-Dur":  { type: 'sharp', count: 2 },
+  "A-Dur":  { type: 'sharp', count: 3 },
+  "E-Dur":  { type: 'sharp', count: 4 },
+  "F-Dur":  { type: 'flat',  count: 1 },
+  "B-Dur":  { type: 'flat',  count: 2 },
+  "Es-Dur": { type: 'flat',  count: 3 },
+  "As-Dur": { type: 'flat',  count: 4 },
+};
+
+// sp-Positionen der Vorzeichen auf den Notenlinien
+const KEY_SIG = {
+  treble: {
+    sharps: [{sp:8},{sp:5},{sp:9},{sp:6}],  // F# C# G# D#
+    flats:  [{sp:4},{sp:7},{sp:3},{sp:6}],  // Bb Eb Ab Db
+  },
+  bass: {
+    sharps: [{sp:6},{sp:3},{sp:7},{sp:4}],  // F# C# G# D#
+    flats:  [{sp:2},{sp:5},{sp:8},{sp:4}],  // Bb Eb Ab Db
+  },
+};
+
+const CLEF_FONT = "Bravura, 'Segoe UI Symbol', serif";
+const CLEF_SIZE = 80;
+const CLEF_BASE_Y = 138; // unterste Notenlinie (angepasst)
+
+function TrebleClef() {
+  return (
+    <text x="6" y={CLEF_BASE_Y} fontSize={CLEF_SIZE}
+      fontFamily={CLEF_FONT} fill="#111">
+      {'𝄞'}
+    </text>
+  );
+}
+
+function BassClef() {
+  return (
+    <text x="6" y={CLEF_BASE_Y - 30} fontSize={CLEF_SIZE}
+      fontFamily={CLEF_FONT} fill="#111">
+      {'𝄢'}
+    </text>
+  );
+}
+
+function Staff({ clef, note, feedback, scale }) {
+  const ny = sY(note.sp);
+  const stemUp = clef === 'treble' ? true : note.sp < 4;
+  const stemX  = stemUp ? NX+10.5 : NX-10.5;
+  const stemEndY = stemUp ? ny-40 : ny+40;
+  const ledgers = ledgersFor(note.sp);
+  const border = feedback===null?"#c5cae9":feedback?"#81c784":"#ef9a9a";
+  const bg     = feedback===null?"#fafaf5":feedback?"#f1f8e9":"#fff5f5";
+
+  const ks = SCALE_KEYSIG[scale] || { type: null, count: 0 };
+  const keySigSymbols = ks.type ? (() => {
+    const clefKey = clef === 'treble' ? 'treble' : 'bass';
+    const positions = KEY_SIG[clefKey][ks.type === 'sharp' ? 'sharps' : 'flats'].slice(0, ks.count);
+    const acc = ks.type === 'sharp' ? '♯' : '♭';
+    return positions.map((pos, i) => (
+      <text key={i} x={SX1 + 9 + i * 13} y={sY(pos.sp) + 1}
+        textAnchor="middle" fontSize="70"
+        fontFamily="Bravura, 'Times New Roman', serif" fill="#111">
+        {acc}
+      </text>
+    ));
+  })() : null;
+
+  return (
+    <svg width="290" height="228" viewBox="0 0 290 228"
+      style={{background:bg,borderRadius:14,border:`2.5px solid ${border}`,
+              transition:"all 0.3s",display:"block"}}>
+      {clef==="treble" ? <TrebleClef/> : <BassClef/>}
+      {[0,2,4,6,8].map(sp=>(
+        <line key={sp} x1={SX1} y1={sY(sp)} x2={SX2} y2={sY(sp)}
+          stroke="#333" strokeWidth="1.6"/>
+      ))}
+      {keySigSymbols}
+      {ledgers.map(sp=>(
+        <line key={"l"+sp} x1={NX-15} y1={sY(sp)} x2={NX+15} y2={sY(sp)}
+          stroke="#333" strokeWidth="1.6"/>
+      ))}
+      <line x1={stemX} y1={ny} x2={stemX} y2={stemEndY}
+        stroke="#111" strokeWidth="1.9"/>
+      {note.acc && (
+        <text x={NX-20} y={ny+6} textAnchor="middle"
+          fontSize="19" fontFamily="Bravura,Times New Roman,serif" fill="#111">
+          {note.acc}
+        </text>
+      )}
+      <ellipse cx={NX} cy={ny} rx={10.5} ry={8.3} fill="#111"
+        transform={"rotate(-18,"+NX+","+ny+")"}/>
+      {feedback!==null && (
+        <text x={NX} y={stemUp?Math.min(ny+56,216):Math.max(ny-48,12)}
+          textAnchor="middle" fontSize="14" fontWeight="bold"
+          fill={feedback?"#2e7d32":"#b71c1c"}>
+          {note.label}
+        </text>
+      )}
+    </svg>
+  );
+}
+
+function Ventil({ num, pressed, onToggle }) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",alignItems:"center",gap:5}}>
+      <span style={{fontSize:11,color:"#7986cb",fontWeight:"bold"}}>
+        {num}. Ventil
+      </span>
+      <button onClick={onToggle} style={{
+        width:56,height:78,
+        borderRadius:"50% 50% 28% 28% / 32% 32% 18% 18%",
+        background:pressed
+          ?"linear-gradient(180deg,#1a237e,#283593)"
+          :"linear-gradient(180deg,#e8eaf6,#c5cae9)",
+        border:`2.5px solid ${pressed?"#0d1b6e":"#9fa8da"}`,
+        color:pressed?"white":"#3949ab",
+        fontSize:22,fontWeight:"bold",cursor:"pointer",
+        boxShadow:pressed
+          ?"inset 0 5px 12px rgba(0,0,0,0.5)"
+          :"0 5px 10px rgba(0,0,0,0.12)",
+        transform:pressed?"translateY(5px)":"none",
+        transition:"all 0.1s",
+        display:"flex",alignItems:"center",justifyContent:"center",
+      }}>{num}</button>
+    </div>
+  );
+}
+
+function App() {
+  const [inst,setInst]       = useState("trumpet");
+  const [diff,setDiff]       = useState("natural");
+  const [scale,setScale]     = useState("Alle");
+  const [selected,setSel]    = useState([]);
+  const [feedback,setFb]     = useState(null);
+  const [score,setScore]     = useState({c:0,t:0});
+  const [showTable,setTable] = useState(false);
+
+  const allNotes = inst==="trumpet" ? TRUMPET : BARITON;
+  const clef     = inst==="trumpet" ? "treble" : "bass";
+
+  const filterPool = (notes, d, s) => {
+    const sc = SCALES[s];
+    return notes
+      .filter(n => d==="natural" ? !n.acc : true)
+      .filter(n => !sc || sc.has(getPitchClass(n.id)));
+  };
+
+  const pool = filterPool(allNotes, diff, scale);
+
+  const [note,setNote] = useState(()=>rand(TRUMPET.filter(n=>!n.acc)));
+
+  const pruefen = () => {
+    if (feedback!==null) return;
+    const ok = setsEqual(selected, note.v);
+    setFb(ok);
+    setScore(s=>({c:s.c+(ok?1:0),t:s.t+1}));
+    if (ok) playTusch();
+  };
+
+  const weiter = () => { setNote(rand(pool.length ? pool : allNotes)); setSel([]); setFb(null); };
+
+  const wechselInst = i => {
+    setInst(i);
+    const notes = i==="trumpet" ? TRUMPET : BARITON;
+    const p = filterPool(notes, diff, scale);
+    setNote(rand(p.length ? p : notes)); setSel([]); setFb(null); setScore({c:0,t:0});
+  };
+
+  const wechselDiff = d => {
+    setDiff(d);
+    const p = filterPool(allNotes, d, scale);
+    setNote(rand(p.length ? p : allNotes)); setSel([]); setFb(null); setScore({c:0,t:0});
+  };
+
+  const wechselScale = s => {
+    setScale(s);
+    const p = filterPool(allNotes, diff, s);
+    setNote(rand(p.length ? p : allNotes)); setSel([]); setFb(null);
+  };
+
+  const toggleV = v => {
+    if (feedback!==null) return;
+    setSel(prev=>prev.includes(v)?prev.filter(x=>x!==v):[...prev,v]);
+  };
+
+  const pct = score.t>0 ? Math.round(score.c/score.t*100) : null;
+
+  return (
+    <div style={{
+      minHeight:"100vh",
+      background:"linear-gradient(150deg,#e8eaf6 0%,#e3f2fd 50%,#fce4ec 100%)",
+      display:"flex",flexDirection:"column",alignItems:"center",
+      padding:"22px 14px 52px",
+      fontFamily:"'Segoe UI',system-ui,sans-serif",
+    }}>
+      <h1 style={{color:"#283593",margin:"0 0 2px",fontSize:23,fontWeight:800}}>
+        🎺 JXP – Griffübungen
+      </h1>
+      <p style={{color:"#5c6bc0",margin:"0 0 2px",fontSize:13}}>
+        Erkenne die Note – drücke die richtigen Ventile!
+      </p>
+      <p style={{color:"#9fa8da",margin:"0 0 18px",fontSize:11}}>
+        Posaunenchor · klingend C (alle Stimmen)
+      </p>
+
+      <div style={{display:"flex",gap:10,marginBottom:12}}>
+        {[["trumpet","Trompete – Violinschlüssel"],["bariton","Bariton – Bassschlüssel"]].map(([k,l])=>(
+          <button key={k} onClick={()=>wechselInst(k)} style={{
+            padding:"8px 18px",borderRadius:20,cursor:"pointer",
+            border:`2px solid ${inst===k?"#283593":"#9fa8da"}`,
+            background:inst===k?"#283593":"white",
+            color:inst===k?"white":"#283593",
+            fontWeight:"bold",fontSize:14,transition:"all 0.2s",
+          }}>{l}</button>
+        ))}
+      </div>
+
+
+      <div style={{display:"flex",flexWrap:"wrap",gap:5,marginBottom:16,
+                   justifyContent:"center",maxWidth:320}}>
+        {Object.keys(SCALES).map(s=>(
+          <button key={s} onClick={()=>wechselScale(s)} style={{
+            padding:"4px 10px",borderRadius:12,cursor:"pointer",
+            border:`2px solid ${scale===s?"#7b1fa2":"#e1bee7"}`,
+            background:scale===s?"#f3e5f5":"white",
+            color:scale===s?"#7b1fa2":"#ce93d8",
+            fontWeight:scale===s?"bold":"normal",
+            fontSize:11,transition:"all 0.2s",
+          }}>{s}</button>
+        ))}
+      </div>
+
+      <div style={{
+        background:"white",borderRadius:20,padding:"5px 18px",
+        boxShadow:"0 2px 8px rgba(0,0,0,0.08)",marginBottom:16,
+        fontSize:14,fontWeight:"bold",color:"#333",
+        display:"flex",gap:10,alignItems:"center",
+      }}>
+        <span>✅ {score.c} / {score.t}</span>
+        {pct!==null && <span style={{color:"#7986cb"}}>{pct}%</span>}
+        {score.t>0 && (
+          <button onClick={()=>setScore({c:0,t:0})} style={{
+            background:"none",border:"none",color:"#bdbdbd",
+            cursor:"pointer",fontSize:12,padding:0,
+          }}>zurücksetzen</button>
+        )}
+      </div>
+
+      <Staff clef={clef} note={note} feedback={feedback} scale={scale}/>
+
+      <p style={{margin:"6px 0 14px",fontSize:11,color:"#9fa8da"}}>
+        {clef==="treble"?"Trompete · Violinschlüssel":"Bariton · Bassschlüssel"}
+      </p>
+
+      <div style={{display:"flex",gap:22,marginBottom:12}}>
+        {[1,2,3].map(v=>(
+          <Ventil key={v} num={v} pressed={selected.includes(v)} onToggle={()=>toggleV(v)}/>
+        ))}
+      </div>
+
+      <p style={{margin:"0 0 16px",fontSize:14,color:"#5c6bc0"}}>
+        Gewählt: <strong style={{color:"#283593"}}>{vLabel(selected)}</strong>
+      </p>
+
+      {feedback===null ? (
+        <button onClick={pruefen} style={{
+          background:"#283593",color:"white",border:"none",
+          borderRadius:22,padding:"12px 46px",fontSize:16,
+          fontWeight:"bold",cursor:"pointer",
+          boxShadow:"0 4px 14px rgba(40,53,147,0.35)",
+        }}>Prüfen ✓</button>
+      ) : (
+        <div style={{textAlign:"center"}}>
+          <p style={{fontSize:20,fontWeight:"bold",margin:"0 0 12px",
+            color:feedback?"#2e7d32":"#c62828"}}>
+            {feedback?"🎉 Richtig!":"❌ Richtig: "+vLabel(note.v)}
+          </p>
+          <button onClick={weiter} style={{
+            background:feedback?"#388e3c":"#5c6bc0",
+            color:"white",border:"none",borderRadius:22,
+            padding:"12px 42px",fontSize:16,
+            fontWeight:"bold",cursor:"pointer",
+            boxShadow:"0 4px 14px rgba(0,0,0,0.2)",
+          }}>Weiter →</button>
+        </div>
+      )}
+
+      <button onClick={()=>setTable(t=>!t)} style={{
+        marginTop:22,background:"none",
+        border:"1.5px solid #c5cae9",borderRadius:14,
+        padding:"6px 16px",fontSize:12,color:"#7986cb",cursor:"pointer",
+      }}>
+        {showTable?"Grifftabelle verbergen ▲":"Grifftabelle anzeigen ▼"}
+      </button>
+
+      {showTable && (
+        <div style={{
+          marginTop:10,background:"rgba(255,255,255,0.85)",
+          borderRadius:12,padding:"12px 20px",maxWidth:290,
+          fontSize:12,color:"#333",
+        }}>
+          <strong style={{color:"#283593"}}>Klingend C · B♭-Instrument</strong>
+          <table style={{width:"100%",borderCollapse:"collapse",marginTop:8}}>
+            <thead>
+              <tr>
+                <th style={{textAlign:"left",paddingBottom:4,color:"#5c6bc0"}}>Note (klingend)</th>
+                <th style={{textAlign:"center",paddingBottom:4,color:"#5c6bc0"}}>Ventile</th>
+              </tr>
+            </thead>
+            <tbody>
+              {GRIFF_INFO.map(({note,ventil})=>(
+                <tr key={note} style={{borderTop:"1px solid #e8eaf6"}}>
+                  <td style={{padding:"3px 0"}}>{note}</td>
+                  <td style={{textAlign:"center",fontWeight:"bold",
+                    color:ventil==="offen"?"#388e3c":"#283593"}}>{ventil}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p style={{margin:"8px 0 0",fontSize:11,color:"#9fa8da"}}>
+            Formel: klingend + große Sekunde = Greifton
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
