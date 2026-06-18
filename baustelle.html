@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>JXP – Baustellen-Kontrollzentrum</title>
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.23.5/babel.min.js"></script>
+</head>
+<body style="margin:0;padding:0;">
+<div id="root"></div>
+<script type="text/babel">
+
+const { useState, useMemo, useEffect } = React;
+
+const STORAGE_KEY = "jxp_baustelle_v1";
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+const uid = () => (crypto.randomUUID ? crypto.randomUUID() : "id" + Math.random().toString(36).slice(2));
+
+function loadData() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return { zones: [], days: {} };
+    const parsed = JSON.parse(raw);
+    return { zones: parsed.zones || [], days: parsed.days || {} };
+  } catch (e) {
+    return { zones: [], days: {} };
+  }
+}
+
+function saveData(data) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+}
+
+const formatDateDe = iso => {
+  const [y, m, d] = iso.split("-");
+  return `${d}.${m}.${y}`;
+};
+
+const addDaysIso = (iso, n) => {
+  const d = new Date(iso + "T00:00:00");
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0, 10);
+};
+
+function zoneUsageCount(data, zoneId) {
+  let n = 0;
+  Object.values(data.days).forEach(dayEntries => {
+    if (dayEntries[zoneId]) n++;
+  });
+  return n;
+}
+
+function Card({ children, style }) {
+  return (
+    <div style={{
+      background: "white", borderRadius: 14, padding: "16px 18px",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.07)", ...style,
+    }}>{children}</div>
+  );
+}
+
+function TabButton({ active, onClick, children }) {
+  return (
+    <button onClick={onClick} style={{
+      padding: "9px 18px", borderRadius: 20, cursor: "pointer",
+      border: `2px solid ${active ? "#2e7d32" : "#a5d6a7"}`,
+      background: active ? "#2e7d32" : "white",
+      color: active ? "white" : "#2e7d32",
+      fontWeight: "bold", fontSize: 13, transition: "all 0.2s",
+    }}>{children}</button>
+  );
+}
+
+function Tageserfassung({ data, setData, date, setDate }) {
+  const activeZones = data.zones.filter(z => !z.archived);
+  const dayEntries = data.days[date] || {};
+
+  const updateEntry = (zoneId, field, value) => {
+    setData(prev => {
+      const next = { ...prev, days: { ...prev.days } };
+      const day = { ...(next.days[date] || {}) };
+      const current = day[zoneId] || { workers: 0, hours: 8 };
+      const updated = { ...current, [field]: value };
+      day[zoneId] = updated;
+      next.days[date] = day;
+      return next;
+    });
+  };
+
+  let totalWorkers = 0;
+  let totalHours = 0;
+  activeZones.forEach(z => {
+    const e = dayEntries[z.id];
+    if (e) {
+      totalWorkers += Number(e.workers) || 0;
+      totalHours += (Number(e.workers) || 0) * (Number(e.hours) || 0);
+    }
+  });
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 14, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <button onClick={() => setDate(addDaysIso(date, -1))} style={navBtnStyle}>◀</button>
+        <input type="date" value={date} onChange={e => setDate(e.target.value)}
+          style={{ fontSize: 15, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #c8e6c9" }} />
+        <button onClick={() => setDate(addDaysIso(date, 1))} style={navBtnStyle}>▶</button>
+        <button onClick={() => setDate(todayIso())} style={{ ...navBtnStyle, width: "auto", padding: "0 14px" }}>Heute</button>
+        <span style={{ marginLeft: "auto", color: "#558b2f", fontWeight: "bold" }}>{formatDateDe(date)}</span>
+      </Card>
+
+      {activeZones.length === 0 ? (
+        <Card style={{ color: "#888", textAlign: "center" }}>
+          Noch keine Bauabschnitte angelegt. Wechsle zum Tab „Bauabschnitte“, um den ersten anzulegen.
+        </Card>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {activeZones.map(z => {
+            const e = dayEntries[z.id] || { workers: "", hours: 8 };
+            const ph = (Number(e.workers) || 0) * (Number(e.hours) || 0);
+            return (
+              <Card key={z.id} style={{ display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                <strong style={{ flex: "1 1 160px", color: "#1b5e20" }}>{z.name}</strong>
+                <label style={fieldLabelStyle}>
+                  Arbeiter
+                  <input type="number" min="0" value={e.workers}
+                    onChange={ev => updateEntry(z.id, "workers", ev.target.value)}
+                    style={numInputStyle} />
+                </label>
+                <label style={fieldLabelStyle}>
+                  Std./Arbeiter
+                  <input type="number" min="0" step="0.5" value={e.hours}
+                    onChange={ev => updateEntry(z.id, "hours", ev.target.value)}
+                    style={numInputStyle} />
+                </label>
+                <span style={{ color: "#7cb342", fontSize: 13, minWidth: 130 }}>
+                  = {ph || 0} Personenstunden
+                </span>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {activeZones.length > 0 && (
+        <Card style={{ marginTop: 14, background: "#e8f5e9", display: "flex", gap: 24, fontWeight: "bold", color: "#2e7d32" }}>
+          <span>Gesamt {formatDateDe(date)}: {totalWorkers} Arbeiter</span>
+          <span>{totalHours} Personenstunden</span>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+const navBtnStyle = {
+  width: 36, height: 36, borderRadius: 8, border: "1.5px solid #c8e6c9",
+  background: "white", color: "#2e7d32", fontWeight: "bold", cursor: "pointer", fontSize: 14,
+};
+const fieldLabelStyle = { display: "flex", flexDirection: "column", fontSize: 11, color: "#558b2f", gap: 3 };
+const numInputStyle = { width: 70, padding: "6px 8px", borderRadius: 8, border: "1.5px solid #c8e6c9", fontSize: 14 };
+
+function Bauabschnitte({ data, setData }) {
+  const [name, setName] = useState("");
+  const [editingId, setEditingId] = useState(null);
+  const [editingName, setEditingName] = useState("");
+
+  const addZone = () => {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setData(prev => ({ ...prev, zones: [...prev.zones, { id: uid(), name: trimmed, archived: false }] }));
+    setName("");
+  };
+
+  const toggleArchive = id => {
+    setData(prev => ({
+      ...prev,
+      zones: prev.zones.map(z => z.id === id ? { ...z, archived: !z.archived } : z),
+    }));
+  };
+
+  const startEdit = z => { setEditingId(z.id); setEditingName(z.name); };
+
+  const saveEdit = () => {
+    const trimmed = editingName.trim();
+    if (trimmed) {
+      setData(prev => ({
+        ...prev,
+        zones: prev.zones.map(z => z.id === editingId ? { ...z, name: trimmed } : z),
+      }));
+    }
+    setEditingId(null);
+  };
+
+  const deleteZone = id => {
+    const used = zoneUsageCount(data, id) > 0;
+    if (used) return;
+    if (!confirm("Diesen Bauabschnitt endgültig löschen?")) return;
+    setData(prev => ({ ...prev, zones: prev.zones.filter(z => z.id !== id) }));
+  };
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 14, display: "flex", gap: 10 }}>
+        <input value={name} onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === "Enter" && addZone()}
+          placeholder="Neuer Bauabschnitt, z.B. „Erdgeschoss Ost“"
+          style={{ flex: 1, padding: "9px 12px", borderRadius: 8, border: "1.5px solid #c8e6c9", fontSize: 14 }} />
+        <button onClick={addZone} style={{
+          background: "#2e7d32", color: "white", border: "none", borderRadius: 8,
+          padding: "9px 18px", fontWeight: "bold", cursor: "pointer",
+        }}>Hinzufügen</button>
+      </Card>
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {data.zones.length === 0 && (
+          <Card style={{ color: "#888", textAlign: "center" }}>Noch keine Bauabschnitte vorhanden.</Card>
+        )}
+        {data.zones.map(z => {
+          const used = zoneUsageCount(data, z.id) > 0;
+          return (
+            <Card key={z.id} style={{
+              display: "flex", alignItems: "center", gap: 12,
+              opacity: z.archived ? 0.55 : 1,
+            }}>
+              {editingId === z.id ? (
+                <input value={editingName} autoFocus
+                  onChange={e => setEditingName(e.target.value)}
+                  onKeyDown={e => e.key === "Enter" && saveEdit()}
+                  onBlur={saveEdit}
+                  style={{ flex: 1, padding: "6px 10px", borderRadius: 8, border: "1.5px solid #c8e6c9" }} />
+              ) : (
+                <strong style={{ flex: 1, color: "#1b5e20" }}>
+                  {z.name} {z.archived && <span style={{ fontSize: 11, color: "#bf360c" }}>(archiviert)</span>}
+                </strong>
+              )}
+              {editingId !== z.id && (
+                <button onClick={() => startEdit(z)} style={smallBtnStyle}>Umbenennen</button>
+              )}
+              <button onClick={() => toggleArchive(z.id)} style={smallBtnStyle}>
+                {z.archived ? "Wiederherstellen" : "Archivieren"}
+              </button>
+              {!used && (
+                <button onClick={() => deleteZone(z.id)} style={{ ...smallBtnStyle, color: "#c62828", borderColor: "#ef9a9a" }}>
+                  Löschen
+                </button>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+      <p style={{ fontSize: 12, color: "#888", marginTop: 12 }}>
+        Archivierte Bauabschnitte tauchen nicht mehr in der Tageserfassung auf, bleiben aber in der Auswertung sichtbar.
+        Löschen ist nur möglich, solange für den Bauabschnitt noch keine Erfassungen existieren.
+      </p>
+    </div>
+  );
+}
+
+const smallBtnStyle = {
+  padding: "6px 12px", borderRadius: 8, border: "1.5px solid #c8e6c9",
+  background: "white", color: "#2e7d32", fontSize: 12, cursor: "pointer",
+};
+
+function Auswertung({ data }) {
+  const allDates = Object.keys(data.days).sort();
+  const [von, setVon] = useState(allDates[0] || todayIso());
+  const [bis, setBis] = useState(allDates[allDates.length - 1] || todayIso());
+
+  const zonesById = useMemo(() => {
+    const m = {};
+    data.zones.forEach(z => { m[z.id] = z; });
+    return m;
+  }, [data.zones]);
+
+  const rangeDates = allDates.filter(d => d >= von && d <= bis);
+
+  const rows = rangeDates.map(date => {
+    const entries = data.days[date] || {};
+    let totalWorkers = 0;
+    let totalHours = 0;
+    const perZone = {};
+    Object.entries(entries).forEach(([zoneId, e]) => {
+      const w = Number(e.workers) || 0;
+      const h = Number(e.hours) || 0;
+      perZone[zoneId] = { workers: w, hours: w * h };
+      totalWorkers += w;
+      totalHours += w * h;
+    });
+    return { date, perZone, totalWorkers, totalHours };
+  });
+
+  const usedZoneIds = useMemo(() => {
+    const s = new Set();
+    rows.forEach(r => Object.keys(r.perZone).forEach(id => s.add(id)));
+    return data.zones.filter(z => s.has(z.id)).map(z => z.id);
+  }, [rows, data.zones]);
+
+  const grandTotalWorkers = rows.reduce((s, r) => s + r.totalWorkers, 0);
+  const grandTotalHours = rows.reduce((s, r) => s + r.totalHours, 0);
+
+  const exportCsv = () => {
+    const header = ["Datum", ...usedZoneIds.map(id => zonesById[id]?.name || id), "Arbeiter gesamt", "Personenstunden gesamt"];
+    const lines = [header.join(";")];
+    rows.forEach(r => {
+      const line = [formatDateDe(r.date), ...usedZoneIds.map(id => r.perZone[id]?.workers ?? 0), r.totalWorkers, r.totalHours];
+      lines.push(line.join(";"));
+    });
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `baustelle_leistung_${von}_${bis}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  return (
+    <div>
+      <Card style={{ marginBottom: 14, display: "flex", gap: 14, alignItems: "center", flexWrap: "wrap" }}>
+        <label style={fieldLabelStyle}>Von
+          <input type="date" value={von} onChange={e => setVon(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1.5px solid #c8e6c9" }} />
+        </label>
+        <label style={fieldLabelStyle}>Bis
+          <input type="date" value={bis} onChange={e => setBis(e.target.value)} style={{ padding: "6px 8px", borderRadius: 8, border: "1.5px solid #c8e6c9" }} />
+        </label>
+        <button onClick={exportCsv} disabled={rows.length === 0} style={{
+          marginLeft: "auto", background: rows.length ? "#2e7d32" : "#c8e6c9", color: "white",
+          border: "none", borderRadius: 8, padding: "8px 16px", fontWeight: "bold",
+          cursor: rows.length ? "pointer" : "not-allowed",
+        }}>CSV exportieren</button>
+      </Card>
+
+      {rows.length === 0 ? (
+        <Card style={{ color: "#888", textAlign: "center" }}>Keine Erfassungen im gewählten Zeitraum.</Card>
+      ) : (
+        <Card style={{ overflowX: "auto" }}>
+          <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 13 }}>
+            <thead>
+              <tr style={{ textAlign: "left", color: "#558b2f" }}>
+                <th style={thStyle}>Datum</th>
+                {usedZoneIds.map(id => <th key={id} style={thStyle}>{zonesById[id]?.name || "–"}</th>)}
+                <th style={thStyle}>Arbeiter ges.</th>
+                <th style={thStyle}>Personenstunden</th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map(r => (
+                <tr key={r.date} style={{ borderTop: "1px solid #e8f5e9" }}>
+                  <td style={tdStyle}>{formatDateDe(r.date)}</td>
+                  {usedZoneIds.map(id => <td key={id} style={tdStyle}>{r.perZone[id]?.workers ?? "–"}</td>)}
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{r.totalWorkers}</td>
+                  <td style={{ ...tdStyle, fontWeight: "bold" }}>{r.totalHours}</td>
+                </tr>
+              ))}
+            </tbody>
+            <tfoot>
+              <tr style={{ borderTop: "2px solid #a5d6a7", fontWeight: "bold", color: "#2e7d32" }}>
+                <td style={tdStyle}>Summe</td>
+                {usedZoneIds.map(id => (
+                  <td key={id} style={tdStyle}>
+                    {rows.reduce((s, r) => s + (r.perZone[id]?.workers || 0), 0)}
+                  </td>
+                ))}
+                <td style={tdStyle}>{grandTotalWorkers}</td>
+                <td style={tdStyle}>{grandTotalHours}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+const thStyle = { padding: "6px 10px", whiteSpace: "nowrap" };
+const tdStyle = { padding: "6px 10px", whiteSpace: "nowrap" };
+
+function App() {
+  const [data, setData] = useState(loadData);
+  const [tab, setTab] = useState("erfassung");
+  const [date, setDate] = useState(todayIso());
+
+  useEffect(() => { saveData(data); }, [data]);
+
+  return (
+    <div style={{
+      minHeight: "100vh",
+      background: "linear-gradient(150deg,#e8f5e9 0%,#f1f8e9 50%,#e0f2f1 100%)",
+      display: "flex", flexDirection: "column", alignItems: "center",
+      padding: "22px 14px 52px", fontFamily: "'Segoe UI',system-ui,sans-serif",
+    }}>
+      <h1 style={{ color: "#1b5e20", margin: "0 0 2px", fontSize: 23, fontWeight: 800 }}>
+        🏗️ JXP – Baustellen-Kontrollzentrum
+      </h1>
+      <p style={{ color: "#558b2f", margin: "0 0 18px", fontSize: 13, textAlign: "center" }}>
+        Arbeiter den Bauabschnitten zuordnen & Tagesleistung auswerten
+      </p>
+
+      <div style={{ display: "flex", gap: 8, marginBottom: 18, flexWrap: "wrap", justifyContent: "center" }}>
+        <TabButton active={tab === "erfassung"} onClick={() => setTab("erfassung")}>Tageserfassung</TabButton>
+        <TabButton active={tab === "abschnitte"} onClick={() => setTab("abschnitte")}>Bauabschnitte</TabButton>
+        <TabButton active={tab === "auswertung"} onClick={() => setTab("auswertung")}>Auswertung</TabButton>
+      </div>
+
+      <div style={{ width: "100%", maxWidth: 700 }}>
+        {tab === "erfassung" && <Tageserfassung data={data} setData={setData} date={date} setDate={setDate} />}
+        {tab === "abschnitte" && <Bauabschnitte data={data} setData={setData} />}
+        {tab === "auswertung" && <Auswertung data={data} />}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
